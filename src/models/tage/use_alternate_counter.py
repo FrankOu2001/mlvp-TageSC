@@ -1,0 +1,11 @@
+class UseAlternateCounter:
+    """
+    4-bit counter, default value is 0b1000
+    """
+    _state = 0b1000
+
+    def update(self, taken):
+        self._state = max(0, min(0b1111, self._state + (1 if taken else -1)))
+
+    def is_use_alt(self) -> bool:
+        return self._state & 0b1000 > 0

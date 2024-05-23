@@ -1,0 +1,8 @@
+from math import log2, ceil
+
+N_ROWS = 4096
+BT_SIZE = 2048
+NUM_BR = 2
+TAGE_CTR_BITS = 3
+UNSHUFFLE_BIT_WIDTH = ceil(log2(NUM_BR))
+N_ROWS_PER_BR = N_ROWS / NUM_BR
