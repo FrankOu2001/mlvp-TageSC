@@ -96,11 +96,10 @@ class Tage:
 
         first_entry, masked_entry = 0, 0
         for i in range(4):
-            if allocatable_status[i]:
-                if not first_entry:
-                    first_entry = i
-                if not masked_entry and rand_status[i]:
-                    masked_entry = i
+            if not allocatable_status[i]:
+                continue
+            first_entry = i if not first_entry else 0
+            masked_entry = i if not masked_entry and rand_status[i] else 0
 
         allocate = masked_entry if allocatable_status[masked_entry] else first_entry
         t: TaggedPredictor = self.tn[allocate]

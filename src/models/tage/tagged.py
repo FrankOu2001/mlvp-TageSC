@@ -49,7 +49,7 @@ class TaggedPredictor:
 
     def train(self, idx: int, taken: int, way: int) -> None:
         t: TaggedEntry = self.table[idx][way]
-        t.ctr = max(0, min(0b111, t.ctr + 1 if taken else -1))
+        t.ctr = max(0, min(0b111, t.ctr + (1 if taken else -1)))
 
     def reset_entry(self, idx: int, tag: int, taken: bool, way: int) -> None:
         t: TaggedEntry = self.table[idx][way]
