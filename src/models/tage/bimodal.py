@@ -1,25 +1,6 @@
-from math import ceil, log2
-
 from mlvp.modules import TwoBitsCounter
-
-from parameter import BT_SIZE, NUM_BR
-
-
-def get_lgc_br_idx(unhashed_idx: int, br_pidx: int) -> int:
-    """
-    :param br_pidx: 预测块中指令槽的物理地址
-    :return: unhashed_idx的低UNSHUFFLE_BIT_WIDTH位与br_pidx的异或
-    """
-    # unshuffle_bits = unhasshed_idx & (1 << unshuffled_bit_width) - 1
-    return (unhashed_idx & 1) ^ br_pidx
-
-
-def get_phy_br_idx(unhashed_idx: int, br_lidx: int) -> int:
-    """
-    :param br_lidx: 预测块中指令槽的逻辑地址
-    :return: unhashed_idx的低UNSHUFFLE_BIT_WIDTH位与br_lidx低log2(NUM_BR)位的异或
-    """
-    return (unhashed_idx & 1) ^ (br_lidx & ((1 << ceil(log2(NUM_BR))) - 1))
+from parameter import BT_SIZE
+from util import get_lgc_br_idx, get_phy_br_idx
 
 
 class BimodalPredictor:
