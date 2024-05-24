@@ -21,4 +21,4 @@ def get_phy_br_idx(unhashed_idx: int, br_lidx: int) -> int:
     :param br_lidx: 预测块中指令槽的逻辑地址
     :return: unhashed_idx的低UNSHUFFLE_BIT_WIDTH位与br_lidx低log2(NUM_BR)位的异或
     """
-    return (unhashed_idx & 1) ^ (br_lidx & ((1 << ceil(log2(NUM_BR))) - 1))
+    return (unhashed_idx & 1) ^ (br_lidx & ((1 << ceil(log2(NUM_BR))) - 1))  # unhashed_idx&1 ^ br_lidx&1
