@@ -1,6 +1,4 @@
 from parameter import *
-from customtypes import TaggedEntry
-from parameter import *
 
 
 def is_unconfident(ctr: int) -> bool:
@@ -30,21 +28,30 @@ def get_idx_tag(pc: int, idx_fh: int, tag_fh: int, all_tag_fg: int) -> tuple[int
     return idx, tag
 
 
+class TaggedEntry:
+    tag = 0
+    ctr = 0
+    valid = False
+    us = 0
+
+
 class TaggedPredictor:
     def __init__(self):
-        self.table = [(TaggedEntry(), TaggedEntry()) for _ in range(BT_SIZE)]
+        self.table: tuple[tuple[TaggedEntry, ...], ...] = tuple(
+            (TaggedEntry(), TaggedEntry()) for _ in range(BT_SIZE)
+        )
 
     def is_hit(self, idx: int, tag: int, way: int) -> bool:
         t = self.table[idx][way]
         return t.valid and t.tag == tag
 
-    def are_hit(self, idx: int, tag: int) -> tuple[bool, bool]:
+    def are_hit(self, idx: int, tag: int) -> tuple[bool, ...]:
         return tuple(t.valid and t.tag == tag for t in self.table[idx])
 
     def get(self, idx: int, way: int) -> TaggedEntry:
         return self.table[idx][way]
 
-    def gets(self, idx: int) -> tuple[TaggedEntry, TaggedEntry]:
+    def gets(self, idx: int) -> tuple[TaggedEntry, ...]:
         return self.table[idx]
 
     def train(self, idx: int, taken: int, way: int) -> None:

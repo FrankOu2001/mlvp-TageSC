@@ -6,13 +6,6 @@ from typing import NamedTuple
 FoldedHistory = namedtuple('FoldedHistory', ['idx_fh', 'tag_fh', 'all_tag_fh'])
 
 
-@dataclass
-class TaggedEntry:
-    tag = 0
-    ctr = 0
-    valid = False
-    us = 0
-
 
 # for Tage
 TageMeta = namedtuple("TageMea", [])
@@ -28,4 +21,4 @@ class TageUpdateInfo(NamedTuple):
     train_taken: bool
     provider: int  # 如果provider是0, 代表没有命中的标签预测器
     provider_taken: bool
-    alt_taken: bool
+    alt_taken: bool # 需要注意的是, 传入alt_taken是按照逻辑索引的顺序传进来的，所以要转换成物理索引

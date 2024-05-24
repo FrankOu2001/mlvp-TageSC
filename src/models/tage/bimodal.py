@@ -13,8 +13,9 @@ class BimodalPredictor:
     """
 
     def __init__(self):
-        self.tables = [(TwoBitsCounter(), TwoBitsCounter()) for _ in range(BT_SIZE)]
-        self.get_lgc_br_idx = get_lgc_br_idx
+        self.tables: tuple[tuple[TwoBitsCounter, ...], ...] = tuple(
+            (TwoBitsCounter(), TwoBitsCounter()) for _ in range(BT_SIZE)
+        )
 
     def train(self, pc: int, taken: bool, way: int) -> None:
         """
@@ -30,9 +31,10 @@ class BimodalPredictor:
         !   & ~io_update_bits_br_taken_mask_0;	// @[src/main/scala/xiangshan/frontend/Tage.scala:614:{50,84}, :615:7]
         ! Tage信息的更新会说到ftb_entry的影响, 但是双方的文档都没有提到这一点
         """
-        u_idx = pc & 0x7ff  # pc[10:0]
-        br_lgc_idx = get_lgc_br_idx(u_idx, way)
-        self.tables[u_idx][br_lgc_idx].update(taken)
+        # u_idx = pc & 0x7ff  # pc[10:0]
+        # br_lgc_idx = get_lgc_br_idx(u_idx, way)
+        # self.tables[u_idx][br_lgc_idx].update(taken)
+        self._get_ctr(pc, way).update(taken)
 
     def get(self, pc: int, way: int) -> bool:
         """
@@ -40,8 +42,7 @@ class BimodalPredictor:
         :param pc:预测块的pc地址
         :return: pc对应的两个槽的分支预测结果
         """
-        idx = pc & 0x7ff  # pc[10:0]
-        return self.tables[get_phy_br_idx(idx, way)][way].get_prediction() >= 0b10
+        return self._get_ctr(pc, way).get_prediction() >= 0b10
 
     def gets(self, pc: int) -> tuple[bool, bool]:
         """
@@ -49,3 +50,7 @@ class BimodalPredictor:
         :return: pc对应的两个槽的分支预测结果
         """
         return tuple(self.get(pc, way) for way in range(2))
+
+    def _get_ctr(self, pc: int, way: int) -> TwoBitsCounter:
+        idx = pc & 0x7ff  # pc[10:0]
+        return self.tables[get_phy_br_idx(idx, way)][way]
