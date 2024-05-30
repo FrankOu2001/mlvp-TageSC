@@ -5,86 +5,107 @@ import mlvp
 from util.executor import Executor
 from collections import namedtuple
 from math import floor
-from mlvp import debug, error
+from mlvp import debug, warning
 from parameter import RESET_VECTOR
-from typing import NamedTuple
+from typing import Optional
+
+
+__all__ = ["FakeFTBEntry", "FakeIFU"]
 
 PREDICT_WIDTH_BYTES = 32
 
 Branch = namedtuple('Branch', ['pc', 'target', 'taken'])
-# BrSlotEntry = namedtuple('BrSlotEntry', ['valid', 'taken', 'len'])
-# TailSlotEntry = namedtuple('TailSlotEntry', ['valid', 'taken', 'len', 'sharing'])
+BrSlotEntry = namedtuple('BrSlotEntry', ['valid', 'taken', 'target', 'len'])
+TailSlotEntry = namedtuple('TailSlotEntry', ['valid', 'taken', 'target', 'sharing', 'len'])
+
+
+class FakeFTBEntry:
+    def __init__(self):
+        self.pc = -1
+        self.br_slot = BrSlotEntry(False, False, 0, -1)
+        self.tail_slot = TailSlotEntry(False, False, 0, False, -1)
+
+    @property
+    def is_empty(self):
+        return not self.br_slot.valid and not self.tail_slot.valid
+
+    def __str__(self):
+        return f"[FTB Entry]: PC({self.pc}), {self.br_slot}, {self.tail_slot}"
 
 
 class FakeIFU:
     def __init__(self, filename, reset_vector=RESET_VECTOR):
         self.executor = Executor(filename)
         self._pc = reset_vector
-        self._block = []
+        self._block: Optional[FakeFTBEntry] = None
         self._set_predict_block_and_update_executor()
 
     def _set_predict_block_and_update_executor(self):
-        block = []
-        num_slot = 2
+        entry = FakeFTBEntry()
+        entry.pc = self._pc
         # 未来的分支指令，可能是当前指令，也有可能是后面的指令
         current = self.executor.current_branch['pc']
         fallthrough_addr = self._pc + PREDICT_WIDTH_BYTES
 
         # assert self._pc < current, "Can't start after the first branch instruction."
 
-        while num_slot > 0 and current < fallthrough_addr:
+        while current < fallthrough_addr:
             branch = self.executor.current_branch
-            block.append(branch)
-            num_slot -= 1
+
             self.executor.jump_to_current_branch()
             current = self.executor.current_branch['pc']
 
             is_cond = self.executor.is_cond_branch_inst(branch)
-            if not is_cond:
+            inst_len = self.executor.branch_inst_len(branch)
+            if is_cond and not entry.tail_slot.valid:
+                # is condition and tail_slot is free
+                if not entry.br_slot.valid:
+                    entry.br_slot = BrSlotEntry(True, branch['taken'], branch['target'], inst_len)
+                else:
+                    entry.tail_slot = TailSlotEntry(True, branch['taken'], branch['target'], True, inst_len)
+            elif not entry.tail_slot.valid:
+                # is jump and tail_slot_is free
+                entry.tail_slot = TailSlotEntry(True, branch['taken'], branch['target'], False, inst_len)
                 break
-
-        self._block = block
-
-    def get_predict_block(self):
-        return self._pc, self._block
-
-    def get_predict_block_and_update_executor(self):
-        block_pc, block = self.get_predict_block()
-        current = self.executor.current_branch['pc']
-
-        debug(f'FakeIFU: Fetch a instruction block at {hex(block_pc)}, with content: {block}')
-        if block:
-            if block[-1]['taken']:
-                # 当前块中最后一条指令跳转的话
-                target = block[-1]['target']
-                bias = floor((current - target) / 32) * 32
-                self._pc = target + bias
-                pass
             else:
-                # 当前块中没有跳转的分支
-                self._pc += floor((current - block_pc) / 32) * 32
-        else:
-            # 如果当前块中没有条件分支指令
-            self._pc += floor((current - block_pc) / 32) * 32
-            error("FakeIFU: Error! Block doesn't have any instruction.")
-
-        self._set_predict_block_and_update_executor()
-        return block_pc, block
-
-    @property
-    def current_block_pc(self):
-        return self._pc
+                break
+        self._block = entry
 
     @property
     def current_block(self):
-        return
+        return self._block
+
+    def get_predict_block_and_update_executor(self):
+        block = self.current_block
+        current = self.executor.current_branch['pc']
+
+        debug(f'FakeIFU: Fetch a instruction block at {hex(block.pc)}, with content: {block}')
+        if not block.is_empty:
+            if block.tail_slot.valid and block.tail_slot.taken:
+                # 当前块中最后一条指令跳转的话(有2条指令）
+                target = block.tail_slot.target
+                bias = floor((current - target) / 32) * 32
+                self._pc = target + bias
+            elif block.br_slot.valid and block.br_slot.taken:
+                # 当前块中最后一条指令跳转的话(有1条指令)
+                target = block.tail_slot.target
+                bias = floor((current - target) / 32) * 32
+                self._pc = target + bias
+            else:
+                # 当前块中没有跳转的分支
+                self._pc += floor((current - block.pc) / 32) * 32
+        else:
+            # 如果当前块中没有条件分支指令
+            self._pc += floor((current - block.pc) / 32) * 32
+            warning("FakeIFU: Error! Block doesn't have any instruction.")
+
+        self._set_predict_block_and_update_executor()
+        return block
 
 
 if __name__ == '__main__':
     t = FakeIFU("../../../utils/ready-to-run/linux.bin")
     print('start at', t._pc)
-    for _ in range(15):
+    for _ in range(20):
         print(t.get_predict_block_and_update_executor())
 
-    for _ in range(3):
-        print(t.get_predict_block())
