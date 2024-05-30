@@ -1,6 +1,5 @@
 from customtypes import FoldedHistory
 from models.sc.signed_bit_counter import SignedBitCounter
-from functools import reduce
 from util import get_phy_br_idx
 
 SC_TABLE_INFO_N_ROWS = 512
@@ -61,7 +60,7 @@ class SCTable:
         idx = get_idx(pc, self.hist_len, fh)
         ctrs: tuple[SignedBitCounter, ...] = self.table[idx]
         l_idx = get_phy_br_idx(pc >> 1, way)
-        return ctrs[2*way: 2*way+2][l_idx][tage_predict]
+        return ctrs[2 * way: 2 * way + 2][l_idx][tage_predict]
 
     def _get_ctrs(self, pc: int, fh: FoldedHistory, tage_predicts: tuple[bool, bool]) -> tuple[SignedBitCounter, ...]:
         # idx = get_idx(pc, self.hist_len, fh)

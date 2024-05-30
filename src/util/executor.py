@@ -1,5 +1,5 @@
-from parameter import *
 from collections import namedtuple
+
 from BRTParser import BRTParser
 
 __all__ = ["Executor"]

@@ -1,3 +1,5 @@
+from typing import Optional
+
 import mlvp
 
 from customtypes import *
@@ -5,7 +7,6 @@ from models.tage.bank_tick_counter import BankTickCounter as BTCtr
 from models.tage.bimodal import BimodalPredictor
 from models.tage.tagged import TaggedPredictor, get_idx_tag
 from models.tage.use_alternate_counter import UseAlternateCounter as UACtr
-from typing import Optional
 
 
 class Tage:

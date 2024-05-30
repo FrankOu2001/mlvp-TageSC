@@ -1,4 +1,5 @@
 from mlvp import Bundle
+
 from parameter import *
 
 __all__ = ["EnableCtrlBundle", "PipelineCtrlBundle", "BranchPredictionReq", "BranchPredictionResp", "UpdateBundle"]

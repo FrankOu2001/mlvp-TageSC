@@ -1,6 +1,6 @@
-from models.sc.sc_threshold import SCThreshold
-from models.sc.sc_table import SCTable
 from customtypes import FoldedHistory
+from models.sc.sc_table import SCTable
+from models.sc.sc_threshold import SCThreshold
 
 HISTORY_LEN = (0, 4, 10, 16)
 
@@ -17,7 +17,7 @@ class SC:
             t.update(pc, fh, tage_predict, taken, way)
 
         thres: SCThreshold = self.thresholds[way]
-        if thres-4 <= abs(total_sum) <= thres-2:
+        if thres - 4 <= abs(total_sum) <= thres - 2:
             thres.update(predict == taken)
             return True
         else:

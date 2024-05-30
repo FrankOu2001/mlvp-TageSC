@@ -1,5 +1,6 @@
 from parameter import *
 
+
 def get_unshuffle_bits(x: int) -> int:
     """
     返回x的低UNSHUFFLE_BIT_WIDTH位

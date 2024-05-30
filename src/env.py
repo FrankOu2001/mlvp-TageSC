@@ -1,10 +1,10 @@
-from models.bundle import *
+from mlvp import *
+
 from UT_Tage_SC import DUTTage_SC as TageSC
 from models.bundle import *
+from models.fake_ifu import FakeIFU
 from models.global_history import GlobalHistory
 from models.likely_ftq import FakeFTQ
-from models.fake_ifu import FakeIFU
-from mlvp import *
 from parameter import *
 from util.meta_parser import MetaParser
 
@@ -73,8 +73,10 @@ class Env:
                     predicts = self.meta_parser.takens
                     block = self.ifu.get_predict_block_and_update_executor()
 
-                    debug(f"Prediction: meta_parse({predicts}), out_last_stage_meta({(self.meta_parser.meta >> 54)&1}, {(self.meta_parser.meta >> 55)&1})")
-                    debug(f"Actual Taken: {(block.br_slot.valid and block.br_slot.taken != predicts[0])} {(block.tail_slot.valid and block.tail_slot.sharing and block.tail_slot.taken != predicts[1])}")
+                    debug(
+                        f"Prediction: meta_parse({predicts}), out_last_stage_meta({(self.meta_parser.meta >> 54) & 1}, {(self.meta_parser.meta >> 55) & 1})")
+                    debug(
+                        f"Actual Taken: {(block.br_slot.valid and block.br_slot.taken != predicts[0])} {(block.tail_slot.valid and block.tail_slot.sharing and block.tail_slot.taken != predicts[1])}")
 
                     if (block.tail_slot.valid and block.tail_slot.sharing and block.tail_slot.taken != predicts[1]) \
                             or (block.br_slot.valid and block.br_slot.taken != predicts[0]):
@@ -101,7 +103,7 @@ class Env:
             debug(f"npc: {npc}, is_mispred: {self.ftq.has_mispred}")
 
             self.pc_s[0] = npc
-            debug('-'*20)
+            debug('-' * 20)
         pass
 
     def pipeline_assign(self):

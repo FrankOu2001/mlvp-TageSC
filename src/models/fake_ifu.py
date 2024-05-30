@@ -1,14 +1,11 @@
-import logging
-
-import mlvp
-
-from util.executor import Executor
 from collections import namedtuple
 from math import floor
-from mlvp import debug, warning
-from parameter import RESET_VECTOR
 from typing import Optional
 
+from mlvp import debug, warning
+
+from parameter import RESET_VECTOR
+from util.executor import Executor
 
 __all__ = ["FakeFTBEntry", "FakeIFU"]
 
@@ -108,4 +105,3 @@ if __name__ == '__main__':
     print('start at', t._pc)
     for _ in range(20):
         print(t.get_predict_block_and_update_executor())
-

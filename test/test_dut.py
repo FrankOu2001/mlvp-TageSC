@@ -4,10 +4,8 @@ import mlvp
 
 from UT_Tage_SC import DUTTage_SC as TageSC
 from UT_Tage_SC.xspcomm import *
-from models.bundle import *
-from parameter import *
 from env import Env
-from typing import Optional
+from models.bundle import *
 
 
 async def bug_test(dut: TageSC):

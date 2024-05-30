@@ -3,6 +3,7 @@ from UT_Tage_SC.xspcomm import *
 
 class MetaParser:
     """Only out_last_stage_meta needs to parse"""
+
     def __init__(self, meta: XPin):
         self._meta = meta
 

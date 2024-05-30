@@ -1,5 +1,6 @@
-from parameter import GLOBAL_HISTORY_LEN
 from collections import namedtuple
+
+from parameter import GLOBAL_HISTORY_LEN
 
 __all__ = ["GlobalHistory", "FoldedHistory", "TageHistory"]
 

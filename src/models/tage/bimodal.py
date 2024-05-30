@@ -1,6 +1,7 @@
 from mlvp.modules import TwoBitsCounter
+
 from parameter import BT_SIZE
-from util import get_lgc_br_idx, get_phy_br_idx
+from util import get_phy_br_idx
 
 
 class BimodalPredictor:
@@ -44,7 +45,7 @@ class BimodalPredictor:
         """
         return self._get_ctr(pc, way).get_prediction() >= 0b10
 
-    def gets(self, pc: int) -> tuple[bool, bool]:
+    def gets(self, pc: int) -> tuple[bool, ...]:
         """
         :param pc:预测块的pc地址
         :return: pc对应的两个槽的分支预测结果

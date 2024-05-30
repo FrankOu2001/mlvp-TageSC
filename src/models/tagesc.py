@@ -1,5 +1,5 @@
-from models.tage import Tage
 from models.sc import SC
+from models.tage import Tage
 from util.lfsr import LFSR_64
 
 

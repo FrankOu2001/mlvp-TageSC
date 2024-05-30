@@ -1,11 +1,13 @@
+import random
 from collections import deque, namedtuple
 from typing import NamedTuple
-from models.global_history import *
-from models.fake_ifu import FakeFTBEntry
-from util.meta_parser import MetaParser
-from mlvp import error
 from typing import Optional
-import random
+
+from mlvp import error
+
+from models.fake_ifu import FakeFTBEntry
+from models.global_history import *
+from util.meta_parser import MetaParser
 
 FTQEntry = namedtuple('FTQEntry',
                       ['pc', 'block', 'predict', 'meta', 'redirect'])
