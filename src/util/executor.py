@@ -68,10 +68,3 @@ class Executor:
     @staticmethod
     def branch_inst_len(branch: dict) -> int:
         return 2 if Executor.is_compressed_inst(branch) else 4
-
-
-if __name__ == '__main__':
-    t = BRTParser().fetch("/home/wjy/Workspace/env-xs-ov-00-bpu/utils/ready-to-run/linux.bin")
-    for i in range(10):
-        data = next(t)
-        print(f"pc: {data['pc']}, target: {data['target']:x}, taken: {data['taken']}")
