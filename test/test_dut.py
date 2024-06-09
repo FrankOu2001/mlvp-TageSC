@@ -1,11 +1,18 @@
+import sys
+from dotenv import dotenv_values
+
+sys.path.extend(dotenv_values().values())
+
 import logging
 
 import mlvp
 
+from mlvp.reporter import set_line_coverage
+
 from UT_Tage_SC import DUTTage_SC as TageSC
 from UT_Tage_SC.xspcomm import *
-from env import Env
-from models.bundle import *
+from models.env.bundle import *
+from models.env.env import Env
 
 
 async def bug_test(dut: TageSC):
@@ -27,17 +34,18 @@ async def bug_test(dut: TageSC):
     mlvp.create_task(Env(
         dut, io_in, io_out, io_update, enable_ctrl, pipeline_ctrl
     ).run())
-    await mlvp.ClockCycles(dut, 100)
+    await mlvp.ClockCycles(dut, 100000)
 
 
-def test_dut():
+def test_dut(request):
     tage_sc = TageSC()
     tage_sc.init_clock("clock")
 
     mlvp.setup_logging(
-        log_level=logging.DEBUG,
+        log_level=logging.WARNING,
         # log_file="report/tage_sc_but_test.log"
     )
     mlvp.run(bug_test(tage_sc))
 
     tage_sc.finalize()
+    set_line_coverage(request, "VTage_SC_coverage.dat")
