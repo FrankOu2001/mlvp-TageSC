@@ -7,16 +7,21 @@ from models.env.global_history import GlobalHistory
 from models.env.fake_ftq import FakeFTQ
 from parameter import *
 from util.meta_parser import MetaParser
+from UT_Tage_SC.xspcomm import *
 
 
 class Env:
-    def __init__(self,
-                 dut: TageSC,
-                 dut_in: BranchPredictionReq,
-                 dut_out: BranchPredictionResp,
-                 dut_update: UpdateBundle,
-                 enable_ctrl: EnableCtrlBundle,
-                 pipeline_ctrl: PipelineCtrlBundle):
+    def __init__(self):
+        dut = TageSC()
+        dut.init_clock("clock")
+
+        self.dut = dut
+        self.dut_in = BranchPredictionReq.from_prefix(dut, "io_in_")
+        self.dut_out = BranchPredictionResp.from_prefix(dut, "io_out_")
+        self.dut_update = UpdateBundle.from_prefix(dut, "io_update_")
+        self.enable_ctrl = EnableCtrlBundle.from_prefix(dut, "io_ctrl_")
+        self.pipeline_ctrl = PipelineCtrlBundle.from_prefix(dut, "io_")
+
         # Global History
         self.predict_ghv = GlobalHistory()
         self.train_ghv = GlobalHistory()
@@ -24,15 +29,18 @@ class Env:
         self.ifu = FakeIFU(FILE_PATH, RESET_VECTOR)
         self.ftq = FakeFTQ(self.meta_parser, delay=False)
 
-        self.dut = dut
-        self.dut_in = dut_in
-        self.dut_out = dut_out
-        self.dut_update = dut_update
-        self.enable_ctrl = enable_ctrl
-        self.pipeline_ctrl = pipeline_ctrl
         self.fire_s = [0 for _ in range(4)]
         self.pc_s = [0 for _ in range(4)]
         self.expect_inst = [0 for _ in range(4)]
+
+        # Set Imme
+        for i in [dut.io_ctrl_sc_enable, dut.io_reset_vector, dut.reset]:
+            i.SetWriteMode(XData.Imme)
+        for i in range(4):
+            for j in range(4):
+                attr = getattr(self.pipeline_ctrl, f"s{i}_fire_{j}")
+                if isinstance(attr, XData):
+                    attr = 0
 
     async def run(self):
         self.enable_ctrl.tage_enable.value = 1
@@ -147,7 +155,6 @@ class Env:
             self.pc_s[0] = npc
             self.fire_s[0] = s0_fire
             debug('-' * 20)
-        pass
 
     def assign_before_clock(self):
         for i in range(4):
@@ -169,6 +176,3 @@ class Env:
             self.fire_s[i] = self.fire_s[i - 1]
             self.pc_s[i] = self.pc_s[i - 1]
             self.expect_inst[i] = self.expect_inst[i - 1]
-        pass
-
-    pass
