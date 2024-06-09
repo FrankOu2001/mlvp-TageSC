@@ -4,12 +4,11 @@ from typing import Optional
 
 from mlvp import debug, warning
 
-from parameter import RESET_VECTOR
+from parameter import RESET_VECTOR, PREDICT_WIDTH_BYTES
 from util.executor import Executor
 
 __all__ = ["FakeFTBEntry", "FakeIFU"]
 
-PREDICT_WIDTH_BYTES = 32
 
 Branch = namedtuple('Branch', ['pc', 'target', 'taken'])
 BrSlotEntry = namedtuple('BrSlotEntry', ['valid', 'taken', 'target', 'len'])
@@ -98,10 +97,3 @@ class FakeIFU:
 
         self._set_predict_block_and_update_executor()
         return block
-
-
-if __name__ == '__main__':
-    t = FakeIFU("../../../utils/ready-to-run/linux.bin")
-    print('start at', t._pc)
-    for _ in range(20):
-        print(t.get_predict_block_and_update_executor())

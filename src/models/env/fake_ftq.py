@@ -5,8 +5,8 @@ from typing import Optional
 
 from mlvp import error
 
-from models.fake_ifu import FakeFTBEntry
-from models.global_history import *
+from models.env.fake_ifu import FakeFTBEntry
+from models.env.global_history import *
 from util.meta_parser import MetaParser
 
 FTQEntry = namedtuple('FTQEntry',
@@ -24,9 +24,10 @@ class FakeFTQ:
         self._q: deque[FakeFTQEntry] = deque()
         self._parse = parse
         self._mis = False
-        self._count = 0
+        self._delay = delay
+        self._count = 2 if self._delay else 0
 
-    def add_to_ftq(self, block: FakeFTBEntry, redirect: Optional[int]):
+    def add_to_ftq(self, block: FakeFTBEntry, redirect: Optional[int], pred_ghv: GlobalHistory):
         if not block.br_slot.valid and not block.tail_slot.valid:
             error("Trying to add an empty instruction block.")
         assert block.br_slot.valid or block.tail_slot.valid, "Empty Instruction Block."
@@ -34,23 +35,26 @@ class FakeFTQ:
         meta = parser.meta
         predicts = parser.takens
 
-        if block.br_slot.valid and block.br_slot.taken != predicts[0]:
-            self._mis = True
+        if block.br_slot.valid:
+            pred_ghv.update(block.br_slot.taken)
+            if block.br_slot.taken != predicts[0]:
+                self._mis = True
 
-        if block.tail_slot.valid and block.tail_slot.sharing and block.tail_slot.taken != predicts[1]:
-            self._mis = True
+        if block.tail_slot.valid and block.tail_slot.sharing:
+            pred_ghv.update(block.tail_slot.taken)
+            if block.tail_slot.taken != predicts[1]:
+                self._mis = True
 
         e = FakeFTQEntry(block, meta, redirect)
         self._q.append(e)
 
     def get_update_and_redirect(self, ghv: GlobalHistory):
         if self._count > 0 or len(self._q) == 0:
-            self._count -= 1
-            return None, None
+            self._count = max(0, self._count - 1)
+            return {'valid': 0}, None
 
-        self._count = random.randint(1, 3)
+        self._count = random.randint(1, 5) if self._delay else 0
         e = self._q.popleft()
-        fh: TageHistory = ghv.get_all_fh()
         predict_takens = self._parse.get_takens(e.meta)
         redirect = e.redirect
 
@@ -61,7 +65,7 @@ class FakeFTQ:
             ghv.update(e.block.tail_slot.taken)
 
         update = {
-            'valid': True,
+            'valid': 1,
             'bits': {
                 'pc': e.block.pc,
                 'meta': e.meta,
@@ -78,25 +82,25 @@ class FakeFTQ:
                     }
                 },
                 'folded_hist': {
-                    "hist_17_folded_hist": fh.t2.idx,
-                    "hist_16_folded_hist": fh.t3.idx,
-                    "hist_15_folded_hist": fh.t1.all_tag,
-                    "hist_14_folded_hist": fh.t0.idx,  # and t0.tag
-                    "hist_12_folded_hist": 0,  # for sc1
-                    "hist_11_folded_hist": 0,  # for sc2
-                    "hist_9_folded_hist": fh.t2.all_tag,
-                    "hist_8_folded_hist": fh.t3.tag,
-                    "hist_7_folded_hist": fh.t0.all_tag,
-                    "hist_5_folded_hist": fh.t3.all_tag,
-                    "hist_4_folded_hist": fh.t1.tag,
-                    "hist_3_folded_hist": fh.t2.tag,
-                    "hist_2_folded_hist": 0,  # for sc3
-                    "hist_1_folded_hist": fh.t1.idx,
+                    "hist_17_folded_hist": ghv.get_fh(11),
+                    "hist_16_folded_hist": ghv.get_fh(11),
+                    "hist_15_folded_hist": ghv.get_fh(7),
+                    "hist_14_folded_hist": ghv.get_fh(8),  # and t0.tag
+                    "hist_12_folded_hist": ghv.get_fh(4),  # for sc1
+                    "hist_11_folded_hist": ghv.get_fh(8),  # for sc2
+                    "hist_9_folded_hist": ghv.get_fh(7),
+                    "hist_8_folded_hist": ghv.get_fh(8),
+                    "hist_7_folded_hist": ghv.get_fh(7),
+                    "hist_5_folded_hist": ghv.get_fh(7),
+                    "hist_4_folded_hist": ghv.get_fh(8),
+                    "hist_3_folded_hist": ghv.get_fh(8),
+                    "hist_2_folded_hist": ghv.get_fh(8),  # for sc3
+                    "hist_1_folded_hist": ghv.get_fh(11),
                 }
             }
         }
         self._mis = False
-
+        ghv.apply_update()
         return update, redirect
 
     @property
