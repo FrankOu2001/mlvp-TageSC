@@ -14,6 +14,10 @@ UNSHUFFLE_BIT_WIDTH = ceil(log2(NUM_BR))
 N_ROWS_PER_BR = N_ROWS / NUM_BR
 
 # File
+# FILE_PATH = "../../../utils/ready-to-run/linux.bin"
+# FILE_PATH = "../../../utils/ready-to-run/microbench.bin"
+FILE_PATH = "/home/wjy/Workspace/env-xs-ov-00-bpu/tests/mlvp-TageSC/test/case.bin"
+
 RESET_VECTOR = 0x80000000
 
 # Global History
