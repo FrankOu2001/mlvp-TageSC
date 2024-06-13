@@ -2,132 +2,112 @@ from typing import Optional
 
 import mlvp
 
-from customtypes import *
 from models.tage.bank_tick_counter import BankTickCounter as BTCtr
 from models.tage.bimodal import BimodalPredictor
-from models.tage.tagged import TaggedPredictor, get_idx_tag
+from models.tage.tagged import TaggedPredictor, ThreeBitCounter
 from models.tage.use_alternate_counter import UseAlternateCounter as UACtr
+from models.folded_history import FoldedHistory
+from mlvp.modules.lfsr_64 import LFSR_64
+
+def get_use_alt_idx(pc: int) -> int:
+    return (pc >> 1) & 0x7f
 
 
 class Tage:
-    def __init__(self, lfsr):
+    def __init__(self, lfsr: LFSR_64):
         self.t0 = BimodalPredictor()
-        self.tn: tuple[TaggedPredictor, ...] = tuple(TaggedPredictor() for _ in range(4))
-        self.use_alt_on_na_ctrs: tuple[tuple[UACtr, ...], ...] = tuple((UACtr(), UACtr()) for _ in range(128))
-        self.bank_tick_ctrs: tuple[tuple[BTCtr, ...], ...] = (BTCtr(), BTCtr())
+        self.tn: list[TaggedPredictor] = [TaggedPredictor() for _ in range(4)]
+        self.use_alt_on_na_ctrs: list[list[UACtr]] = [[UACtr(), UACtr()] for _ in range(128)]
+        self.bank_tick_ctrs = (BTCtr(), BTCtr())
         self.lfsr = lfsr
 
-    def get_tage_ctr(self, pc: int, folded_history: FoldedHistory, way: int) -> Optional[int]:
-        ctr = None
-        for i in range(3, -1, -1):
-            idx, tag = get_idx_tag(pc, *folded_history)
-            tp: TaggedPredictor = self.tn[i]
-            if tp.is_hit(idx, tag, way):
-                resp = tp.get(idx, way)
-                is_weak = resp.ctr == 0b100 or resp.ctr == 0b011  # unconfident
-                ctr = ctr if is_weak and resp.us else resp.ctr
-                break
-        return ctr
+    def get_tagged_ctr_and_bimodal_predict(
+            self, pc: int, predict_fhs: list[FoldedHistory], way: int
+    ) -> tuple[Optional[ThreeBitCounter], bool]:
+        use_alt_on_na_ctr = self.use_alt_on_na_ctrs[get_use_alt_idx(pc)][way]
 
-    def get(self, pc: int, folded_history: FoldedHistory, way: int) -> bool:
-        t0 = self.t0.gets(pc)[way]
-        ctr = self.get_tagged_ctr(self, folded_history, way)
-        return ctr >= 0b100 if ctr is not None else t0
+        t0 = self.t0.get(pc, way)
+        ctr = self.__get_tage_ctr(pc, predict_fhs, way)
+        use_alt = ctr is None or (use_alt_on_na_ctr.is_use_alt() and ctr.is_unconf)
+        return None if use_alt else ctr.taken, t0
 
-    def gets(self, pc: int, folded_histories: tuple[tuple[FoldedHistory, ...], ...]) -> tuple[bool, ...]:
-        return tuple(self.get(pc, folded_histories[w], w) for w in range(2))
-        # res = [*self.t0.gets(pc)]
-        # for way in range(2):
-        #     for i in range(3, -1, -1):
-        #         idx, tag = get_idx_tag(pc, *folded_histories[i])
-        #         p: TaggedPredictor = self.tn[i]
-        #         if p.is_hit(idx, tag, way):
-        #             resp = p.get(idx, way)
-        #             is_weak = resp.ctr == 0b100 or resp.ctr == 0b011  # unconfident
-        #             tagged_predict_taken = resp.ctr >= 0b100
-        #             res[way] = res[way] if is_weak and resp.us else tagged_predict_taken
-        #             break
-        # return tuple(res)
-
-    def train(self, tage_info: TageUpdateInfo, way: int) -> None:
-        if tage_info.provider:
-            # Tagged命中时
-            t: TaggedPredictor = self.tn[tage_info.provider]
-            idx, tag = get_idx_tag(tage_info.pc, *tage_info.folded_history[tage_info.provider])
-            resp = t.get(idx, way)
-            is_weak = resp.ctr == 0b100 or resp.ctr == 0b011
-            predict_diff = tage_info.provider_taken ^ tage_info.alt_taken
-            provider_mis = tage_info.provider_taken ^ tage_info.train_taken
-            alt_mis = tage_info.alt_taken ^ tage_info.train_taken
-            # 更新Tagged
-            t.train(idx, tage_info.train_taken, way)
+    def train(self, pc: int, train_fhs: list[FoldedHistory], provider_valid: bool, provider: int, provider_taken: bool,
+              alt_taken: bool, train_taken: bool, way: int) -> None:
+        if provider_valid:
+            print(f'pc: {pc}, provider_valid: {provider_valid}, provider: {provider}, train_fhs: {train_fhs}')
+            tagged = self.tn[provider]
+            idx_fh, tag_fh, all_tag_fh = train_fhs[provider]
+            ctr = tagged.get_ctr(pc, idx_fh, tag_fh, all_tag_fh, way)
+            predict_diff = provider_taken != alt_taken
+            provider_mispred = provider_taken != train_taken
+            # Train tagged
+            tagged.train(pc, idx_fh, tag_fh, all_tag_fh, way, train_taken)
             if predict_diff:
-                # T0和Tn不相同
-                if is_weak:
-                    u_idx = (tage_info.pc >> 1) & 0x7f
-                    self.use_alt_on_na_ctrs[u_idx][way].update(provider_mis)
-                if provider_mis:
-                    # Tn错误
-                    t.set_us(idx, 0, way)
-                    self._alloc(idx, tag, tage_info.provider, tage_info.train_taken, way)
-                else:
-                    # Tn正确
-                    t.set_us(idx, 1, way)
-            elif provider_mis:
-                # T0和Tn相同, 且都预测错误
-                self._alloc(idx, tag, tage_info.provider, tage_info.train_taken, way)
-                pass
+                u_idx = (pc >> 1) & 0x7f
+                if ctr.is_unconf:
+                    self.use_alt_on_na_ctrs[u_idx][way].update(provider_mispred)
 
+                if provider_mispred:
+                    # Tn predict incorrectly
+                    tagged.set_us(pc, idx_fh, False, way)
+                    # Allocate new entry
+                    self.__allocate_tage_entry(pc, train_fhs, provider, train_taken, way)
+                else:
+                    tagged.set_us(pc, idx_fh, True, way)
         else:
-            # Tagged没有命中, 基础预测器提供结果
-            self.t0.train(tage_info.pc, tage_info.alt_taken, way)
-            idx, tag = get_idx_tag(tage_info.pc, *tage_info.folded_history[tage_info.provider])
-            self._alloc(idx, tag, tage_info.provider, tage_info.train_taken, way)
+            # Only t0 hit
+            print("Train T0", train_taken)
+            self.t0.train(pc, train_taken, way)
+            # Allocate new entry
+            self.__allocate_tage_entry(pc, train_fhs, provider, train_taken, way)
+            pass
         pass
 
-    def _alloc(self, idx: int, tag: int, provider: int, train_taken: bool, way: int) -> None:
-        if provider == 4:
+    def __get_tage_ctr(self, pc: int, folded_histories: list[FoldedHistory], way: int) -> Optional[ThreeBitCounter]:
+        ctr = None
+        for i in range(3, -1, -1):
+            ctr = self.tn[i].get_ctr(pc, *folded_histories[i], way)
+            if ctr is not None:
+                break
+
+        return ctr
+
+    def __allocate_tage_entry(self, pc: int, train_fhs: list[FoldedHistory],
+                              provider: int, train_taken: bool, way: int) -> None:
+        if provider == 3:
             mlvp.warning("[Tage._alloc]: Can't allocate for t4.")
             return
-
         avail, unavail = 0, 0
-        tagged_responses = [t.get(idx, way) for t in self.tn]
-        rand = self.lfsr.get_random() & 0xf
-        rand_status = tuple((rand >> i) & 1 for i in range(4))
-        allocatable_status = tuple(
-            (not tagged_responses[i].valid or not self.tn[i].us) and i > (provider - 1) for i in range(4)
-        )
-        allocatable = False
-        for x in allocatable_status:
-            allocatable |= x
-            if x:
+        is_allocatable = False
+        allocatable_slots = [0] * 4
+        for i in range(4):
+            valid, entry = self.tn[i].get_entry(pc, *train_fhs[i], way)
+            allocatable = (not valid and not entry.us) and (i > provider)
+            is_allocatable |= allocatable
+            allocatable_slots[i] = allocatable
+            if allocatable:
                 avail += 1
             else:
                 unavail += 1
+        pass
         # 在每次需要分配表时，进行动态重置usefulness标志位
         b: BTCtr = self.bank_tick_ctrs[way]
         b.update(avail, unavail)
         if b.reset_when_max():
             self.tn[provider].clear_us(way)
-        if not allocatable:
+        if not is_allocatable:
             mlvp.error("Tage分配失败")
             return
 
+        rand = self.lfsr.rand & 0xf
+        rand_status = [(rand >> i) & 1 for i in range(4)]
         first_entry, masked_entry = 0, 0
         for i in range(4):
-            if not allocatable_status[i]:
+            if not allocatable_slots[i]:
                 continue
             first_entry = i if not first_entry else 0
             masked_entry = i if not masked_entry and rand_status[i] else 0
-
-        allocate = masked_entry if allocatable_status[masked_entry] else first_entry
-        t: TaggedPredictor = self.tn[allocate]
-        t.reset_entry(idx, tag, train_taken, way)
-
-
-if __name__ == '__main__':
-    t = Tage(0)
-    fhs = [FoldedHistory(0, 0, 0) for i in range(4)]
-    info = TageUpdateInfo(0, fhs, False, 1, False, True)
-    t.train(info, 0)
-    t.gets(0, fhs)
+        allocate = masked_entry if allocatable_slots[masked_entry] else first_entry
+        idx_fh, tag_fh, all_tag_fh = train_fhs[allocate]
+        _, allocate_entry = self.tn[allocate].get_entry(pc, idx_fh, tag_fh, all_tag_fh, way)
+        allocate_entry.reset(pc, tag_fh, all_tag_fh, train_taken)

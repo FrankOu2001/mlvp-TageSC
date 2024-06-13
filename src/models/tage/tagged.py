@@ -1,21 +1,10 @@
 from parameter import *
+from typing import Optional
+
+__all__ = ["ThreeBitCounter", "TaggedPredictor"]
 
 
-def is_unconfident(ctr: int) -> bool:
-    pos_unconfident = ctr == (1 << (TAGE_CTR_BITS - 1))  # ctr == b011
-    neg_unconfident = ctr == (1 << (TAGE_CTR_BITS - 1)) - 1  # ctr == b100
-    return pos_unconfident or neg_unconfident
-
-
-def get_tagged_idx(pc: int, idx_fh: int) -> int:
-    return idx_fh ^ (pc >> 1) & 0x7ff  # index是11位
-
-
-def get_tagged_tag(pc: int, tag_fh: int, all_tag_fh: int):
-    return tag_fh ^ all_tag_fh ^ (pc >> 1) & 0xff  # tag是8位
-
-
-def get_idx_tag(pc: int, idx_fh: int, tag_fh: int, all_tag_fg: int) -> tuple[int, int]:
+def get_idx_and_tag(pc: int, idx_fh: int, tag_fh: int, all_tag_fg: int) -> tuple[int, int]:
     """
     :param pc: pc
     :param idx_fh: 文档中的fh
@@ -28,11 +17,48 @@ def get_idx_tag(pc: int, idx_fh: int, tag_fh: int, all_tag_fg: int) -> tuple[int
     return idx, tag
 
 
+def get_idx(pc: int, idx_fh: int) -> int:
+    return idx_fh ^ (pc >> 1) & 0x7ff  # index是11位
+
+
+def get_tag(pc: int, tag_fh: int, all_tag_fh: int):
+    return tag_fh ^ all_tag_fh ^ (pc >> 1) & 0xff  # tag是8位
+
+
+class ThreeBitCounter:
+    def __init__(self, taken):
+        self._v = 0b100 if taken else 0b011
+
+    def reset(self, taken):
+        self._v = 0b100 if taken else 0b011
+
+    def update(self, taken):
+        self._v = max(0, min(0b111, (1 if taken else -1) + self._v))
+
+    @property
+    def value(self):
+        return self._v
+
+    @property
+    def taken(self):
+        return self._v >= 0b100
+
+    @property
+    def is_unconf(self):
+        pos = 1 << (TAGE_CTR_BITS - 1)
+        neg = pos - 1
+        return self._v in {pos, neg}
+
+
 class TaggedEntry:
+    ctr: Optional[ThreeBitCounter] = None
     tag = 0
-    ctr = 0
-    valid = False
     us = 0
+
+    def reset(self, pc, tag_fh, all_tag_fh, taken):
+        self.ctr = ThreeBitCounter(taken)
+        self.tag = get_tag(pc, tag_fh, all_tag_fh)
+        self.us = 0
 
 
 class TaggedPredictor:
@@ -41,32 +67,26 @@ class TaggedPredictor:
             (TaggedEntry(), TaggedEntry()) for _ in range(BT_SIZE)
         )
 
-    def is_hit(self, idx: int, tag: int, way: int) -> bool:
-        t = self.table[idx][way]
-        return t.valid and t.tag == tag
-
-    def are_hit(self, idx: int, tag: int) -> tuple[bool, ...]:
-        return tuple(t.valid and t.tag == tag for t in self.table[idx])
-
-    def get(self, idx: int, way: int) -> TaggedEntry:
-        return self.table[idx][way]
-
-    def gets(self, idx: int) -> tuple[TaggedEntry, ...]:
-        return self.table[idx]
-
-    def train(self, idx: int, taken: int, way: int) -> None:
+    def get_entry(self, pc: int, idx_fh, tag_fh, all_tag_fh, way: int) -> tuple[bool, TaggedEntry]:
+        idx, tag = get_idx_and_tag(pc, idx_fh, tag_fh, all_tag_fh)
         t: TaggedEntry = self.table[idx][way]
-        t.ctr = max(0, min(0b111, t.ctr + (1 if taken else -1)))
+        return (t.ctr is not None and t.tag == tag), t
 
-    def reset_entry(self, idx: int, tag: int, taken: bool, way: int) -> None:
+    def get_ctr(self, pc: int, idx_fh, tag_fh, all_tag_fh, way: int) -> Optional[ThreeBitCounter]:
+        idx, tag = get_idx_and_tag(pc, idx_fh, tag_fh, all_tag_fh)
         t: TaggedEntry = self.table[idx][way]
-        t.valid = 1
-        t.tag = tag
-        t.ctr = 0b100 if taken else 0b011
-        t.us = 0
+        return t.ctr if t.ctr is not None and t.tag == tag else None
 
-    def set_us(self, idx: int, value: int, way: int) -> None:
-        self.table[idx][way].us = value
+    def train(self, pc: int, idx_fh, tag_fh, all_tag_fh, way: int, taken: bool) -> bool:
+        t = self.get_ctr(pc, idx_fh, tag_fh, all_tag_fh, way)
+        if t is not None:
+            t.update(taken)
+            return True
+        return False
+
+    def set_us(self, pc: int, idx_fh: int, is_useful: bool, way: int) -> None:
+        idx = get_idx(pc, idx_fh)
+        self.table[idx][way].us = 1 if is_useful else 0
 
     def clear_us(self, way: int) -> None:
         for i in range(BT_SIZE):

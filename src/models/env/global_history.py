@@ -5,15 +5,12 @@ from collections import deque
 
 from parameter import GLOBAL_HISTORY_LEN
 
-__all__ = ["GlobalHistory", "FoldedHistory", "FoldedHistories"]
+__all__ = ["GlobalHistory"]
 
 GLOBAL_HISTORY_MASK = (1 << GLOBAL_HISTORY_LEN) - 1
 
 SC_TABLE_HIST_LEN = (GLOBAL_HISTORY_LEN, 4, 10, 16)
 SC_FOLDED_HIST_LEN = (0, 4, 8, 8)
-
-FoldedHistory = namedtuple('FoldedHistory', ['idx', 'tag', 'all_tag'])
-FoldedHistories = namedtuple('FoldedHistories', ['t0', 't1', 't2', 't3'])
 
 
 class GlobalHistory:
@@ -32,15 +29,15 @@ class GlobalHistory:
             g = self.ghv
             self.ghv = (g << 1) | self._q.popleft() & GLOBAL_HISTORY_MASK
 
-    def get_fh(self, hist_len: int):
-        if hist_len == 0:
+    def get_fh(self, folded_len: int, hist_len: int):
+        if folded_len == 0:
             return 0
         res = 0
-        g = self.ghv
-        mask = (1 << hist_len) - 1
-        for _ in range(0, self._len, hist_len):
+        g = self.ghv & ((1 << hist_len) - 1)
+        mask = (1 << folded_len) - 1
+        for _ in range(0, min(self._len, hist_len), folded_len):
             res ^= g & mask
-            g >>= hist_len
+            g >>= folded_len
         return res
 
 

@@ -1,36 +1,42 @@
-from customtypes import FoldedHistory
 from models.sc.sc_table import SCTable
 from models.sc.sc_threshold import SCThreshold
+
+__all__ = ["SC"]
 
 HISTORY_LEN = (0, 4, 10, 16)
 
 
 class SC:
     def __init__(self):
-        self.tables = tuple(SCTable(hist_len) for hist_len in HISTORY_LEN)
-        self.thresholds = tuple(SCThreshold() for _ in range(2))
+        self.tables = [SCTable(hist_len) for hist_len in HISTORY_LEN]
+        self.sc_threshold = [SCThreshold(), SCThreshold()]
 
-    def update_if_use_sc(self, pc: int, fh: FoldedHistory, tage_predict: bool,
-                         total_sum: int, predict: bool, taken: bool, way: int) -> bool:
+    def train(
+        self, pc: int, sc_fhs: list[int], old_total_sum: int, tage_predict: bool, sc_predict: bool, taken: bool, way: int
+    ) -> None:
+        """
+        sum使用的是预测时产生的oldCtrs:
+        https://github.com/OpenXiangShan/XiangShan/blob/545d7be08861a078dc54ccc114bf1792e894ab54/src/main/scala/xiangshan/frontend/SC.scala#L334-L335
+        """
+        threshold = self.sc_threshold[way].get()
+        if tage_predict != sc_predict and \
+                threshold - 4 <= abs(old_total_sum) <= threshold - 2:
+            success = sc_predict == taken
+            self.sc_threshold[way].update(success)
+        # Update SC Tables
         for i in range(4):
-            t: SCTable = self.tables[i]
-            t.update(pc, fh, tage_predict, taken, way)
+            self.tables[i].update(pc, sc_fhs[i], tage_predict, taken, way)
 
-        thres: SCThreshold = self.thresholds[way]
-        if thres - 4 <= abs(total_sum) <= thres - 2:
-            thres.update(predict == taken)
-            return True
-        else:
-            return False
-
-    def get_threshold(self, way: int):
-        t: SCThreshold = self.thresholds[way]
-        return t.signed_thres
-
-    def get_sc_ctr_sum(self, pc: int, fh: FoldedHistory, tage_predict: bool, way: int):
+    def get_sc_ctr_sum(self, pc: int, sc_fhs: list[int], tage_predict: bool, way: int) -> int:
         sc_sum = 0
-        for i in range(4):
-            t: SCTable = self.tables[i]
-            sc_sum += t.get(pc, fh, tage_predict, way)
 
+        for i in range(4):
+            x = self.tables[i].get(pc, sc_fhs[i], tage_predict, way)
+            sc_sum += (x << 1) + 1
+
+        assert sc_sum != 0, "have no discussion about sc_sum = 0"
         return sc_sum
+
+    def get_threshold(self, way: int) -> SCThreshold:
+        return self.sc_threshold[way].get()
+

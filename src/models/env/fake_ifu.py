@@ -10,6 +10,7 @@ from util.executor import Executor
 __all__ = ["FakeFTBEntry", "FakeIFU"]
 
 
+
 Branch = namedtuple('Branch', ['pc', 'target', 'taken'])
 BrSlotEntry = namedtuple('BrSlotEntry', ['valid', 'taken', 'target', 'len'])
 TailSlotEntry = namedtuple('TailSlotEntry', ['valid', 'taken', 'target', 'sharing', 'len'])
