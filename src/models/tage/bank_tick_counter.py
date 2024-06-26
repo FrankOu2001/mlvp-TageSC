@@ -6,7 +6,7 @@ class BankTickCounter:
     _state = 0
 
     def update(self, avail: int, unavail: int) -> None:
-        val = avail - unavail
+        val = unavail - avail
         self._state = max(0, min(0b1111111, self._state + val))
 
     def reset_when_max(self) -> bool:

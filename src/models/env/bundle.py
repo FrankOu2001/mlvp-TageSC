@@ -10,7 +10,7 @@ class EnableCtrlBundle(Bundle):
     @DynamicAttrs
     io_ctrl_
     """
-    signals_list = ["tage_enable", "sc_enable"]
+    signals = ["tage_enable", "sc_enable"]
 
 
 class PipelineCtrlBundle(Bundle):
@@ -18,48 +18,51 @@ class PipelineCtrlBundle(Bundle):
     @DynamicAttrs
     io_s{x}_fire
     """
-    signals_list = [
+    signals = [
         # ctrl of s{i} stage, 0->BPU, 1->Tage, 3->SC
-        *[f"s{i}_fire_{j}" for i in range(4) for j in range(4)],
+        *[f"s{i}_fire_{j}" for i in range(3) for j in range(4)],
     ]
 
 
 class FoldedHistoryBundle(Bundle):
-    signals_list = [f"hist_{i}_folded_hist" for i in range(18)]
+    signals = [f"hist_{i}_folded_hist" for i in range(18)]
 
 
 class FTBSlotBundle(Bundle):
-    signals_list = ["offset", "lower", "tarStat", "sharing", "valid"]
+    signals = ["valid", "sharing"]
 
 
 class FTBEntryBundle(Bundle):
-    signals_list = [
-        "valid", "pftAddr", "carry",
-        "isCall", "isRet", "isJalr", "last_may_be_rvi_call",
+    signals = [
         *[f"always_taken_{i}" for i in range(NUM_BR)]
     ]
-    sub_bundles = [
-        ("brSlots_0", lambda dut: FTBSlotBundle.from_prefix(dut, "brSlots_0_")),
-        ("tailSlot", lambda dut: FTBSlotBundle.from_prefix(dut, "tailSlot_"))
-    ]
+
+    def __init__(self):
+        super().__init__()
+        self.brSlots_0 = FTBSlotBundle.from_prefix("brSlots_0_")
+        self.tailSlot = FTBSlotBundle.from_prefix("tailSlot_")
 
 
 class FullBranchPredictionBundle(Bundle):
-    signals_list = [
-        "hit",
-        *[f"{type}_{i}" for i in range(NUM_BR) for type in ["slot_valids", "targets", "offsets", "br_taken_mask"]],
-        "fallThroughAddr", "fallThroughErr",
-        "is_jal", "is_jalr", "is_call", "is_ret", "is_br_sharing",
-        "last_may_be_rvi_call",
-        "jalr_target"
+    signals = [
+        # "hit",
+        *[f"{type}_{i}" for i in range(NUM_BR) for type in
+          # ["slot_valids", "targets", "offsets", "br_taken_mask"]],
+          ["br_taken_mask"]],
+        # "fallThroughAddr", "fallThroughErr",
+        # "is_jal", "is_jalr", "is_call", "is_ret", "is_br_sharing",
+        # "last_may_be_rvi_call",
+        # "jalr_target"
     ]
 
 
 class BranchPredictionBundle(Bundle):
-    signals_list = ["pc", "valid", "hasRedirect", "ftq_idx"]
-    sub_bundles = [
-        (f"full_pred", lambda dut: FullBranchPredictionBundle.from_regex(dut, r"full_pred_\d_(.*)"))
-    ]
+    # signals = ["pc", "valid", "hasRedirect", "ftq_idx"]
+    signals = []
+
+    def __init__(self):
+        super().__init__()
+        self.full_pred = FullBranchPredictionBundle.from_regex(r"full_pred_\d_(.*)")
 
 
 class BranchPredictionReq(Bundle):
@@ -67,13 +70,12 @@ class BranchPredictionReq(Bundle):
     @DynamicAttrs
     io_in_
     """
-    signals_list = [f"bits_s0_pc_{i}" for i in range(4)]
-    sub_bundles = [
-        # TageTables' folded histories
-        ("fh_tage", lambda dut: FoldedHistoryBundle.from_prefix(dut, "bits_folded_hist_1_")),
-        # SCTables' folded histories
-        ("fh_sc", lambda dut: FoldedHistoryBundle.from_prefix(dut, "bits_folded_hist_3_"))
-    ]
+    signals = [f"bits_s0_pc_{i}" for i in [0, 1, 3]]
+
+    def __init__(self):
+        super().__init__()
+        self.fh_tage = FoldedHistoryBundle.from_prefix("bits_folded_hist_1_")
+        self.fh_sc = FoldedHistoryBundle.from_prefix("bits_folded_hist_3_")
 
 
 class BranchPredictionResp(Bundle):
@@ -81,24 +83,25 @@ class BranchPredictionResp(Bundle):
     @DynamicAttrs
     io_out_
     """
-    signals_list = ["last_stage_meta"]
-    sub_bundles = [
-        (f"s{i}", lambda dut: BranchPredictionBundle.from_prefix(dut, f"s{i}_")) for i in range(2, 4)
-    ]
+    signals = ["last_stage_meta"]
+
+    def __init__(self):
+        super().__init__()
+        self.s2 = BranchPredictionBundle.from_prefix("s2_")
+        self.s3 = BranchPredictionBundle.from_prefix("s3_")
 
 
 class BranchPredictionUpdate(Bundle):
-    signals_list = [
-        "pc", "meta", "old_entry",
+    signals = [
+        "pc", "meta",
         *[f"br_taken_mask_{i}" for i in range(NUM_BR)],
-        *[f"mispred_mask_{i}" for i in range(NUM_BR + 1)],
-        "jmp_taken", "full_target",
-        "cfi_idx"
+        *[f"mispred_mask_{i}" for i in range(NUM_BR)]
     ]
-    sub_bundles = [
-        ("ftb_entry", lambda dut: FTBEntryBundle.from_prefix(dut, "ftb_entry_")),
-        ("folded_hist", lambda dut: FoldedHistoryBundle.from_prefix(dut, "spec_info_folded_hist_"))
-    ]
+
+    def __init__(self):
+        super().__init__()
+        self.ftb_entry = FTBEntryBundle.from_prefix("ftb_entry_")
+        self.folded_hist = FoldedHistoryBundle.from_prefix("spec_info_folded_hist_")
 
 
 class UpdateBundle(Bundle):
@@ -106,5 +109,8 @@ class UpdateBundle(Bundle):
     @DynamicAttrs
     io_update_
     """
-    signals_list = ["valid"]
-    sub_bundles = [("bits", lambda dut: BranchPredictionUpdate.from_prefix(dut, "bits_"))]
+    signals = ["valid"]
+
+    def __init__(self):
+        super().__init__()
+        self.bits = BranchPredictionUpdate.from_prefix("bits_")

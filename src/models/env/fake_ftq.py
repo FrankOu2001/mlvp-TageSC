@@ -1,5 +1,4 @@
-import random
-from collections import deque, namedtuple
+from collections import deque
 from typing import NamedTuple
 from typing import Optional
 
@@ -9,8 +8,7 @@ from models.env.fake_ifu import FakeFTBEntry
 from models.env.global_history import *
 from util.meta_parser import MetaParser
 
-FTQEntry = namedtuple('FTQEntry',
-                      ['pc', 'block', 'predict', 'meta', 'redirect'])
+__all__ = ["FakeFTQ"]
 
 
 class FakeFTQEntry(NamedTuple):
@@ -20,11 +18,9 @@ class FakeFTQEntry(NamedTuple):
 
 
 class FakeFTQ:
-    def __init__(self, delay=False):
+    def __init__(self):
         self._q: deque[FakeFTQEntry] = deque()
         self._mis = False
-        self._delay = delay
-        self._count = 2 if self._delay else 0
 
     def add_to_ftq(self, block: FakeFTBEntry, last_stage_meta: int, redirect: Optional[int], pred_ghv: GlobalHistory):
         if not block.br_slot.valid and not block.tail_slot.valid:
@@ -46,16 +42,14 @@ class FakeFTQ:
         self._q.append(e)
 
     def get_update_and_redirect(self, ghv: GlobalHistory):
-        if self._count > 0 or len(self._q) == 0:
-            self._count = max(0, self._count - 1)
+        if not self._q:
             return {'valid': 0}, None
 
-        self._count = random.randint(1, 5) if self._delay else 0
         e = self._q.popleft()
         predict_takens = MetaParser(e.meta).takens
         redirect = e.redirect
 
-        # update global history
+        # update global history for train
         if e.block.br_slot.valid:
             ghv.update(e.block.br_slot.taken)
         if e.block.tail_slot.valid and e.block.tail_slot.sharing:
@@ -97,7 +91,6 @@ class FakeFTQ:
             }
         }
         self._mis = False
-        ghv.apply_update()
         return update, redirect
 
     @property

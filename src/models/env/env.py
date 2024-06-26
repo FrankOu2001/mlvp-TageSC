@@ -17,11 +17,11 @@ __all__ = ['Env']
 class Env:
     def __init__(self, dut: TageSC):
         self.dut = dut
-        self.dut_in = BranchPredictionReq.from_prefix(dut, "io_in_")
-        self.dut_out = BranchPredictionResp.from_prefix(dut, "io_out_")
-        self.dut_update = UpdateBundle.from_prefix(dut, "io_update_")
-        self.enable_ctrl = EnableCtrlBundle.from_prefix(dut, "io_ctrl_")
-        self.pipeline_ctrl = PipelineCtrlBundle.from_prefix(dut, "io_")
+        self.dut_in = BranchPredictionReq.from_prefix("io_in_").bind(dut)
+        self.dut_out = BranchPredictionResp.from_prefix("io_out_").bind(dut)
+        self.dut_update = UpdateBundle.from_prefix("io_update_").bind(dut)
+        self.enable_ctrl = EnableCtrlBundle.from_prefix("io_ctrl_").bind(dut)
+        self.pipeline_ctrl = PipelineCtrlBundle.from_prefix("io_").bind(dut)
 
         # Global History
         self.predict_ghv = GlobalHistory()
@@ -71,7 +71,7 @@ class Env:
             # Get Ref Prediction
             if self.fire_s[3]:
                 predict_pass = self.compare_predict()
-                error(hex(self.ref.lfsr.rand))
+                error(f"R{hex(self.ref.lfsr.rand)}")
 
             # Update Ref
             # Updating must be in advance of predicting.
@@ -172,7 +172,7 @@ class Env:
             if redirect:
                 debug("Redirect.")
                 # if self.train_ghv.ghv != self.predict_ghv.ghv:
-                self.predict_ghv.ghv = self.train_ghv.ghv
+                self.predict_ghv.value = self.train_ghv.value
             else:
                 debug("Continue Run.")
 
@@ -228,4 +228,3 @@ class Env:
         # train tail_slot
         if br_slot.valid.value and tail_slot.valid.value and tail_slot.sharing.value:
             train(update_pc, train_meta, update_bits.br_taken_mask_1.value, 1)
-

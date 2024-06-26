@@ -1,3 +1,4 @@
+import mlvp
 from mlvp.modules import TwoBitsCounter
 
 from parameter import BT_SIZE, INST_OFFSET_BITS
@@ -32,22 +33,25 @@ class BimodalPredictor:
         # br_lgc_idx = get_lgc_br_idx(u_idx, way)
         # self.tables[u_idx][br_lgc_idx].update(taken)
         self.get_ctr(pc, way).update(taken)
+        mlvp.debug(f"T0 update finish, {pc:x} way{way}, train_taken: {taken}, t0_ctr(after update): {self.get_ctr(pc, way).counter}")
 
-    def get(self, pc: int, way: int) -> bool:
+    def predict(self, pc: int, way: int) -> bool:
         """
         :param pc:预测块的pc地址
         :param way: 哪一路
         :return: 预测结果 taken/not taken
         """
-        return self.get_ctr(pc, way).get_prediction() >= 0b10
+        return self.get_ctr(pc, way).get_prediction()
 
     def gets(self, pc: int) -> tuple[bool, ...]:
         """
         :param pc:预测块的pc地址
         :return: pc对应的两个槽的分支预测结果
         """
-        return tuple(self.get(pc, way) for way in range(2))
+        return tuple(self.predict(pc, way) for way in range(2))
 
     def get_ctr(self, pc: int, way: int) -> TwoBitsCounter:
-        idx = (pc >> INST_OFFSET_BITS) & 0x7ff  # pc[11:1]
-        return self.tables[get_phy_br_idx(idx, way)][way]
+        idx = (pc & 0xfff) >> INST_OFFSET_BITS # pc[11:1]
+        logical_way = get_phy_br_idx(idx, way)
+        mlvp.debug(f"From T0, pc: {pc:x} -> idx: {idx:x}, physical way: {way} -> logical_way: {logical_way}, value: {self.tables[idx][logical_way].counter}")
+        return self.tables[idx][logical_way]
