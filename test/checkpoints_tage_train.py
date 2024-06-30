@@ -52,7 +52,7 @@ def is_update_saturing_tagged_ctr(way: int, t_i: int, up_or_down: int):
 
 def is_allocate_new_entry(way: int, except_success_or_failure: int):
     """
-    #FIXME: 目前的判断逻辑还是按照Chisel代码进行的, 所以可用表项信息失效的bug依旧存在.
+    #WARNING: 目前的判断逻辑还是按照Chisel代码进行的, 所以可用表项信息失效的bug依旧存在.
     """
     need_to_allocates = ["Tage_SC_needToAllocate", "Tage_SC_needToAllocate_1"]
 
@@ -121,8 +121,23 @@ def is_update_from_tagged_weak(way: int, t_correct: int, use_alt: int, alt_corre
     return update_from_tagged
 
 
+def is_reset_us(way: int):
+    def reset_us(dut: DUTTage_SC) -> bool:
+        valid = dut.io_s1_ready != 0
+        reset_u = getattr(dut, f"Tage_SC_updateResetU_{way}").value != 0
+        return valid and reset_u
+    return reset_us
+
+
+def is_update_always_taken(way: int):
+    def update_always_taken(dut: DUTTage_SC) -> bool:
+        always_taken = getattr(dut, f"io_update_bits_ftb_entry_always_taken_{way}").value != 0
+        return dut.io_s1_ready.value != 0 and dut.io_update_valid.value != 0 and always_taken
+    return update_always_taken
+
+
 def get_coverage_group_of_tage_train(dut: DUTTage_SC) -> CovGroup:
-    g = CovGroup("Tage Train")
+    g = CovGroup("Tage Train", False)
     """Tage Train function coverage begin"""
     # 第w条指令槽的T0上/下饱和
     for up_or_down in range(2):
@@ -160,14 +175,18 @@ def get_coverage_group_of_tage_train(dut: DUTTage_SC) -> CovGroup:
         g.add_watch_point(
             dut,
             {
-                "initialize ready": lambda d: d.io_s1_ready.value == 1,
-                f"reset u of {slot_name[w]}": lambda d: getattr(d, f"Tage_SC_updateResetU_{w}").value
+                f"reset us of {slot_name[w]}": is_reset_us(w),
             },
             name=f"Reset useful bit of {slot_name[w]}"
         )
 
-    # TODO: always_taken
-    # TODO: 更新-预测冲突发生
+    for w in range(2):
+        s = f"Alaways taken - way{w}"
+        g.add_watch_point(dut, {"always_taken": is_update_always_taken}, name=s)
+    # 第w个指令槽，更新-预测同时发生
+    for w in range(2):
+        s = f"Update when predict in way{w}"
+        g.add_watch_point(dut,{"": lambda d: d.io_s1_ready.value != 0 and d.io_update_valid.value != 0}, name=s)
 
     # 第w条指令槽对应的Ti命中且弱信息，使用/不适用替代预测，Ti正确/错误，替代预测正确/错误
     for w in range(2):

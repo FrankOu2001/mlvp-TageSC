@@ -14,6 +14,8 @@ from mlvp.reporter import *
 
 from checkpoints_tage_predict import *
 from checkpoints_tage_train import *
+from checkpoints_sc_predict import *
+from checkpoints_sc_train import *
 
 
 def init_tage_sc_pins():
@@ -32,6 +34,10 @@ async def rand_test(pins: TageSCPins):
     ghv = GlobalHistory()
 
     pc = 0x8000000  # + random.randint(0, 0xff)
+    for i in range(2):
+        await pins.cmd_train(UpdateRecord(
+            0x1000, True, True, True, 0, 0, 0, 0, i > 0, 1
+        ))
 
     for i in range(50):
         taken = i > 25, i < 25
@@ -51,10 +57,10 @@ async def rand_test(pins: TageSCPins):
             pc, i > 25, True, True, p['last_stage_meta'], ghv.value, taken, miss, 0, 0
         ))
 
-    for i in range(20000):
+    for i in range(2000000):
         taken = (random.randint(0, 1) > 0, random.randint(0, 1) > 0)
         # valid = (random.randint(0, 1) > 0, random.randint(0, 1) > 0) if i > 0 else (True, True)
-        p = await pins.cmd_predict(pc + random.randint(0, 0xf) * 32, ghv.value)
+        p = await pins.cmd_predict(pc + random.randint(0, 0xfff) * 8, ghv.value)
         parser = MetaParser(p['last_stage_meta'])
         miss = (parser.takens[0] != taken[0], parser.takens[1] != taken[1])
         await pins.cmd_train(UpdateRecord(
@@ -66,19 +72,29 @@ async def rand_test(pins: TageSCPins):
 
 
 def test_func(request) -> None:
+    def func_currying(func_sample):
+        def f(clk):
+            func_sample()
+        return f
+
     pins = init_tage_sc_pins()
 
-    g_tage_predict = get_coverage_group_of_tage_predict(pins.dut)
-    g_tage_train = get_coverage_group_of_tage_train(pins.dut)
+    groups = [
+        get_coverage_group_of_tage_predict(pins.dut),
+        get_coverage_group_of_tage_train(pins.dut),
+        get_coverage_group_of_sc_predict(pins.dut),
+        get_coverage_group_of_sc_train(pins.dut),
+    ]
 
-    pins.dut.StepRis(lambda _: g_tage_predict.sample())
-    pins.dut.StepRis(lambda _: g_tage_train.sample())
+    for g in groups:
+        pins.dut.StepRis(func_currying(g.sample))
 
     mlvp.run(rand_test(pins))
     pins.dut.finalize()
-    set_func_coverage(request, [g_tage_predict, g_tage_train])
+    set_func_coverage(request, groups)
     set_line_coverage(request, "VTage_SC_coverage.dat")
 
 
 if __name__ == '__main__':
+    # mlvp.setup_logging(console_display=False)
     generate_pytest_report('report.html')

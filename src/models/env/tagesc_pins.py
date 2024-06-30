@@ -3,14 +3,11 @@ import mlvp
 from models.env.bundle import *
 from models.env.global_history import GlobalHistory
 from models.env.fake_ftq import FakeFTBEntry
-from mlvp import Bundle, setup_logging
+from mlvp import Bundle
 from mlvp import ClockCycles, Condition, Value
-from mlvp.logger import DEBUG
 from UT_Tage_SC import DUTTage_SC
 
 __all__ = ["TageSCPins", "UpdateRecord"]
-
-setup_logging(DEBUG)
 
 
 class UpdateRecord:

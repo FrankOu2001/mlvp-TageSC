@@ -56,7 +56,7 @@ class Env:
         self.dut.io_s0_fire_0.value = 1
         self.dut.io_s0_fire_1.value = 1
         self.dut.io_s0_fire_3.value = 1
-        await Condition(self.dut, lambda: self.dut.io_s1_ready.value == 1)
+        await Condition(self.dut, lambda: self.dut.io_s1_ready.value != 0)
 
         self.fire_s[0] = 1
         update = {'valid': 0}
